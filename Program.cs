@@ -101,7 +101,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins("http://localhost:5173", "https://front-clcl.vercel.app")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -128,13 +128,13 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // Program.cs — agrega esta línea, justo antes del bloque de Swagger que ya tienes
-app.UseSwagger();
-app.UseSwaggerUI();
-
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
 }
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors();
