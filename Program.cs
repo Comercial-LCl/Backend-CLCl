@@ -128,11 +128,12 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // Program.cs — agrega esta línea, justo antes del bloque de Swagger que ya tienes
+app.UseSwagger();
+app.UseSwaggerUI();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
