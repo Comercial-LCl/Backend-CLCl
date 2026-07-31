@@ -141,5 +141,7 @@ app.UseAuthentication();
 app.UseRequestAuthorization(); // Iam: resuelve HttpContext.Items["User"] antes de los controllers
 app.UseAuthorization();
 app.MapControllers();
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+app.Urls.Add($"http://+:{port}");
 
 app.Run();
