@@ -8,16 +8,27 @@ using FacturasIA.Platform.Invoicing.Infrastructure.Storage.Oracle.Configuration;
 
 namespace FacturasIA.Platform.Invoicing.Infrastructure.Storage.Oracle.Services;
 
-public class OracleObjectStorageService(IOptions<OracleObjectStorageSettings> settings) : IAlmacenamientoService
+public class OracleObjectStorageService : IAlmacenamientoService
 {
-    private readonly OracleObjectStorageSettings _settings = settings.Value;
+    private readonly OracleObjectStorageSettings _settings;
     private IAmazonS3? _s3Client;
+
+    public OracleObjectStorageService(IOptions<OracleObjectStorageSettings> settings)
+    {
+        _settings = settings.Value;
+    }
 
     private IAmazonS3 ObtenerCliente()
     {
         return _s3Client ??= new AmazonS3Client(
             new BasicAWSCredentials(_settings.AccessKey, _settings.SecretKey),
-            new AmazonS3Config { ServiceURL = _settings.ServiceUrl, ForcePathStyle = true });
+            new AmazonS3Config
+            {
+                ServiceURL = _settings.ServiceUrl,
+                ForcePathStyle = true,
+                RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+                ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED
+            });
     }
 
     public async Task<string> SubirImagenAsync(byte[] contenido, string contentType, CancellationToken cancellationToken)
