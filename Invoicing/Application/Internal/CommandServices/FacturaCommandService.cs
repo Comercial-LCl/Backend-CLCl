@@ -10,6 +10,7 @@ using FacturasIA.Platform.Invoicing.Domain.Model.ValueObjects;
 using FacturasIA.Platform.Invoicing.Domain.Repositories;
 using FacturasIA.Platform.Shared.Application.Model;
 using FacturasIA.Platform.Shared.Domain.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace FacturasIA.Platform.Invoicing.Application.Internal.CommandServices;
 
@@ -21,7 +22,8 @@ public class FacturaCommandService(
     IAlmacenamientoService almacenamientoService,
     IPdfTextExtractorService pdfTextExtractorService,
     IConsultaRucService consultaRucService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<FacturaCommandService> logger)
     : IFacturaCommandService
 {
    async Task<Result<Factura>> IFacturaCommandService.Handle(
@@ -91,8 +93,9 @@ public class FacturaCommandService(
     {
         return Result<Factura>.Failure(InvoicingError.InternalServerError, ex.Message);
     }
-    catch (Exception)
+    catch (Exception ex)
     {
+        logger.LogError(ex, "Error procesando factura con IA");
         return Result<Factura>.Failure(
             InvoicingError.ProcesamientoIaFallido, "No se pudo procesar la factura con IA.");
     }
@@ -150,8 +153,9 @@ public class FacturaCommandService(
         {
             return Result<Factura>.Failure(InvoicingError.InternalServerError, ex.Message);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Error procesando factura con IA");
             return Result<Factura>.Failure(
                 InvoicingError.ProcesamientoIaFallido, "No se pudo procesar la factura con IA.");
         }
