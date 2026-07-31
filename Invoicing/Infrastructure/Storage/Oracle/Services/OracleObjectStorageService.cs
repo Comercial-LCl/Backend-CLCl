@@ -39,7 +39,9 @@ public class OracleObjectStorageService(IOptions<OracleObjectStorageSettings> se
             BucketName = _settings.BucketName,
             Key = key,
             InputStream = stream,
-            ContentType = contentType
+            ContentType = contentType,
+            UseChunkEncoding = false,
+            DisablePayloadSigning = true
         }, cancellationToken);
 
         return $"{_settings.PublicBaseUrl.TrimEnd('/')}/{key}";
