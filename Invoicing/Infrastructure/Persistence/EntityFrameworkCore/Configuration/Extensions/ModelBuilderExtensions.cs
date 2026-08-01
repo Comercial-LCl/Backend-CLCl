@@ -48,7 +48,7 @@ public static class ModelBuilderExtensions
 
             entity.OwnsOne(f => f.NumeroFactura, nf =>
             {
-                nf.Property(n => n.Serie).HasColumnName("serie").IsRequired().HasMaxLength(10);
+                nf.Property(n => n.Serie).HasColumnName("serie").IsRequired().HasMaxLength(20);
                 nf.Property(n => n.Numero).HasColumnName("numero").IsRequired().HasMaxLength(20);
             });
 
