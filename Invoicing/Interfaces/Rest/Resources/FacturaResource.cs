@@ -14,4 +14,6 @@ public record FacturaResource(
     string? ResumenIa,
     string? ArchivoUrl,
     string EstadoProcesamiento,
+    IReadOnlyDictionary<string, string>? ConfianzaCampos,
+    bool RequiereRevision,
     IEnumerable<ItemFacturaResource> Items);

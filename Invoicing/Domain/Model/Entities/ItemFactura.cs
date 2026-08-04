@@ -1,13 +1,11 @@
-﻿// Invoicing/Domain/Model/Entities/ItemFactura.cs
+﻿// Invoicing/Domain/Model/Entities/ItemFactura.cs — reemplaza la clase completa
 namespace FacturasIA.Platform.Invoicing.Domain.Model.Entities;
 
-/// <summary>
-///     Entidad hija de Factura — no tiene repositorio propio, se persiste junto con la factura.
-/// </summary>
 public class ItemFactura
 {
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid FacturaId { get; private set; }
+    public Guid ProductoId { get; private set; }
     public string Descripcion { get; private set; }
     public decimal Cantidad { get; private set; }
     public decimal PrecioUnitario { get; private set; }
@@ -18,7 +16,7 @@ public class ItemFactura
         Descripcion = string.Empty;
     }
 
-    public ItemFactura(string descripcion, decimal cantidad, decimal precioUnitario)
+    public ItemFactura(Guid productoId, string descripcion, decimal cantidad, decimal precioUnitario)
     {
         if (string.IsNullOrWhiteSpace(descripcion))
             throw new ArgumentException("La descripción del ítem es obligatoria.", nameof(descripcion));
@@ -27,6 +25,7 @@ public class ItemFactura
         if (precioUnitario < 0)
             throw new ArgumentException("El precio unitario no puede ser negativo.", nameof(precioUnitario));
 
+        ProductoId = productoId;
         Descripcion = descripcion;
         Cantidad = cantidad;
         PrecioUnitario = precioUnitario;

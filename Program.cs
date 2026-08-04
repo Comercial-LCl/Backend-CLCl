@@ -72,6 +72,8 @@ builder.Services.AddScoped<IPdfTextExtractorService, PdfTextExtractorService>();
 builder.Services.AddScoped<IAlmacenamientoService, OracleObjectStorageService>();
 builder.Services.AddHttpClient<IConsultaRucService, ConsultaRucService>();
 builder.Services.AddHttpClient<IOcrIaService, GeminiOcrIaService>();
+builder.Services.AddScoped<IProductoRepository, ProductoRepository>();
+builder.Services.AddScoped<IProductoQueryService, ProductoQueryService>();
 
 // ---- Controllers ----
 builder.Services.AddControllers();

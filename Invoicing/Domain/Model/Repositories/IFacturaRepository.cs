@@ -8,6 +8,9 @@ public interface IFacturaRepository : IBaseRepository<Factura>
 {
     Task<IEnumerable<Factura>> ListByUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken);
 
+    Task<IEnumerable<(DateTime FechaEmision, decimal PrecioUnitario)>> HistorialPreciosPorProductoAsync(
+        Guid productoId, Guid usuarioId, CancellationToken cancellationToken);
+
     Task<IEnumerable<Factura>> FiltrarAsync(
         Guid usuarioId,
         Guid? proveedorId,

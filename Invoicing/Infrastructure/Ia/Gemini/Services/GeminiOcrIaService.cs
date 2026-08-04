@@ -1,29 +1,40 @@
-﻿// Invoicing/Infrastructure/Ia/Gemini/Services/GeminiOcrIaService.cs
+﻿// Invoicing/Infrastructure/Ia/Gemini/Services/GeminiOcrIaService.cs — reemplaza el archivo completo
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using FacturasIA.Platform.Invoicing.Application.Internal.OutboundServices;
+using FacturasIA.Platform.Invoicing.Domain.Model;
 using FacturasIA.Platform.Invoicing.Infrastructure.Ia.Gemini.Configuration;
 
 namespace FacturasIA.Platform.Invoicing.Infrastructure.Ia.Gemini.Services;
 
-/// <summary>
-///     Llama a la API REST de Gemini (generateContent) pidiéndole una respuesta en JSON estricto,
-///     y la deserializa a los DTOs de resultado del puerto IOcrIaService.
-/// </summary>
 public class GeminiOcrIaService(HttpClient httpClient, IOptions<GeminiSettings> settings) : IOcrIaService
 {
     private readonly GeminiSettings _settings = settings.Value;
 
-    private record GeminiItemDto(string descripcion, decimal cantidad, decimal precioUnitario);
+    private record GeminiItemDto(string descripcion, string nombreNormalizado, decimal cantidad, decimal precioUnitario);
 
-    private record GeminiFisicaDto(List<GeminiItemDto> items, string categoriaSugerida, string resumenIa);
+    private record GeminiFisicaDto(
+        List<GeminiItemDto> items, string categoriaSugerida, string resumenIa,
+        string confianzaCategoria, bool itemsRequierenRevision);
 
     private record GeminiElectronicaDto(
         string proveedorRuc, string proveedorRazonSocial, string serie, string numero,
         string fechaEmision, decimal montoTotal, string moneda,
-        List<GeminiItemDto> items, string categoriaSugerida, string resumenIa);
+        List<GeminiItemDto> items, string categoriaSugerida, string resumenIa,
+        Dictionary<string, string> confianzaCampos, bool itemsRequierenRevision);
+
+    private static NivelConfianza ParsearConfianza(string valor)
+    {
+        return valor.Trim().ToLowerInvariant() switch
+        {
+            "alta" => NivelConfianza.Alta,
+            "media" => NivelConfianza.Media,
+            "baja" => NivelConfianza.Baja,
+            _ => NivelConfianza.Media
+        };
+    }
 
     public async Task<ResultadoOcrIaFisica> ProcesarFacturaFisicaAsync(
         byte[] imagenBytes, string contentType, CancellationToken cancellationToken)
@@ -32,38 +43,57 @@ public class GeminiOcrIaService(HttpClient httpClient, IOptions<GeminiSettings> 
             Eres un asistente que extrae información de fotos de facturas de compra peruanas.
             Analiza la imagen adjunta y responde EXCLUSIVAMENTE con un JSON (sin markdown, sin texto
             adicional) con esta forma exacta:
-            {"items": [{"descripcion": string, "cantidad": number, "precioUnitario": number}],
-             "categoriaSugerida": string, "resumenIa": string}
+            {"items": [{"descripcion": string, "nombreNormalizado": string, "cantidad": number, "precioUnitario": number}],
+             "categoriaSugerida": string, "resumenIa": string,
+             "confianzaCategoria": "alta"|"media"|"baja",
+             "itemsRequierenRevision": boolean}
             La categoriaSugerida debe ser una categoría de gasto de negocio corta (ej. "Insumos de oficina",
-            "Alimentos", "Servicios"). El resumenIa debe ser 1-2 oraciones resumiendo la compra.
+            "Alimentos", "Servicios"). El nombreNormalizado debe ser una versión corta y estandarizada del
+            producto en minúsculas, sin marcas ni tamaños específicos (ej. "papel bond a4"), para poder
+            agrupar el mismo producto entre distintas facturas. confianzaCategoria es tu propio nivel de
+            certeza sobre la categoría que elegiste. itemsRequierenRevision debe ser true si la foto salió
+            borrosa, cortada, o si tuviste que adivinar algún número de la tabla de productos.
             """;
 
         var dto = await LlamarGeminiAsync<GeminiFisicaDto>(prompt, imagenBytes, contentType, cancellationToken);
 
         return new ResultadoOcrIaFisica(
-            dto.items.Select(i => new ItemExtraido(i.descripcion, i.cantidad, i.precioUnitario)).ToList(),
+            dto.items.Select(i => new ItemExtraido(i.descripcion, i.nombreNormalizado, i.cantidad, i.precioUnitario)).ToList(),
             dto.categoriaSugerida,
-            dto.resumenIa);
+            dto.resumenIa,
+            ParsearConfianza(dto.confianzaCategoria),
+            dto.itemsRequierenRevision);
     }
 
     public async Task<ResultadoIaElectronica> ProcesarFacturaElectronicaAsync(
         string textoExtraido, CancellationToken cancellationToken)
     {
         var prompt = $$"""
-                       Eres un asistente que extrae información de facturas electrónicas peruanas a partir del
-                       texto plano extraído de su PDF. Responde EXCLUSIVAMENTE con un JSON (sin markdown, sin
-                       texto adicional) con esta forma exacta:
-                       {"proveedorRuc": string (11 dígitos), "proveedorRazonSocial": string, "serie": string,
-                         "numero": string, "fechaEmision": string (formato yyyy-MM-dd), "montoTotal": number,
-                         "moneda": string (código de 3 letras, ej. PEN), "items": [{"descripcion": string,
-                         "cantidad": number, "precioUnitario": number}], "categoriaSugerida": string,
-                         "resumenIa": string}
+            Eres un asistente que extrae información de facturas electrónicas peruanas a partir del
+            texto plano extraído de su PDF. Responde EXCLUSIVAMENTE con un JSON (sin markdown, sin
+            texto adicional) con esta forma exacta:
+            {"proveedorRuc": string (11 dígitos), "proveedorRazonSocial": string, "serie": string,
+              "numero": string, "fechaEmision": string (formato yyyy-MM-dd), "montoTotal": number,
+              "moneda": string (código de 3 letras, ej. PEN), "items": [{"descripcion": string,
+              "nombreNormalizado": string, "cantidad": number, "precioUnitario": number}],
+              "categoriaSugerida": string, "resumenIa": string,
+              "confianzaCampos": {"proveedorRuc": "alta"|"media"|"baja", "serie": "alta"|"media"|"baja",
+              "numero": "alta"|"media"|"baja", "fechaEmision": "alta"|"media"|"baja",
+              "montoTotal": "alta"|"media"|"baja", "categoria": "alta"|"media"|"baja"},
+              "itemsRequierenRevision": boolean}
+            El nombreNormalizado debe ser una versión corta y estandarizada del producto en minúsculas,
+            sin marcas ni tamaños específicos, para poder agrupar el mismo producto entre distintas
+            facturas. confianzaCampos es tu propio nivel de certeza en cada campo de cabecera que
+            extrajiste del texto — usa "baja" si el texto salió cortado, ambiguo, o tuviste que inferir
+            el valor en vez de leerlo directamente.
 
-                       Texto extraído del PDF:
-                       {{textoExtraido}}
-                       """;
+            Texto extraído del PDF:
+            {{textoExtraido}}
+            """;
 
         var dto = await LlamarGeminiAsync<GeminiElectronicaDto>(prompt, null, null, cancellationToken);
+
+        var confianzaCampos = dto.confianzaCampos.ToDictionary(kv => kv.Key, kv => ParsearConfianza(kv.Value));
 
         return new ResultadoIaElectronica(
             dto.proveedorRuc,
@@ -73,9 +103,11 @@ public class GeminiOcrIaService(HttpClient httpClient, IOptions<GeminiSettings> 
             DateTime.Parse(dto.fechaEmision),
             dto.montoTotal,
             dto.moneda,
-            dto.items.Select(i => new ItemExtraido(i.descripcion, i.cantidad, i.precioUnitario)).ToList(),
+            dto.items.Select(i => new ItemExtraido(i.descripcion, i.nombreNormalizado, i.cantidad, i.precioUnitario)).ToList(),
             dto.categoriaSugerida,
-            dto.resumenIa);
+            dto.resumenIa,
+            confianzaCampos,
+            dto.itemsRequierenRevision);
     }
 
     private async Task<T> LlamarGeminiAsync<T>(

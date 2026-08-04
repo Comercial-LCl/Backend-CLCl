@@ -18,6 +18,7 @@ public class FacturaCommandService(
     IFacturaRepository facturaRepository,
     IProveedorRepository proveedorRepository,
     ICategoriaRepository categoriaRepository,
+    IProductoRepository productoRepository,
     IOcrIaService ocrIaService,
     IAlmacenamientoService almacenamientoService,
     IPdfTextExtractorService pdfTextExtractorService,
@@ -36,8 +37,10 @@ public class FacturaCommandService(
 
         Guid? categoriaId = null;
         string? archivoUrl = null;
-        List<ItemExtraido> items = [];
+        var items = new List<ItemFactura>();
         string? resumenIa = null;
+        Dictionary<string, NivelConfianza>? confianzaCampos = null;
+        var itemsRequierenRevision = false;
 
         if (command.ImagenBytes is not null && command.ImagenContentType is not null)
         {
@@ -46,8 +49,15 @@ public class FacturaCommandService(
 
             var categoria = await ObtenerOCrearCategoriaAsync(resultadoIa.CategoriaSugerida, cancellationToken);
             categoriaId = categoria.Id;
-            items = resultadoIa.Items.ToList();
             resumenIa = resultadoIa.ResumenIa;
+            confianzaCampos = new Dictionary<string, NivelConfianza> { ["categoria"] = resultadoIa.ConfianzaCategoria };
+            itemsRequierenRevision = resultadoIa.ItemsRequierenRevision;
+
+            foreach (var itemExtraido in resultadoIa.Items)
+            {
+                var producto = await ObtenerOCrearProductoAsync(proveedor.Id, itemExtraido.NombreNormalizado, cancellationToken);
+                items.Add(new ItemFactura(producto.Id, itemExtraido.Descripcion, itemExtraido.Cantidad, itemExtraido.PrecioUnitario));
+            }
 
             archivoUrl = await almacenamientoService.SubirImagenAsync(
                 command.ImagenBytes, command.ImagenContentType, cancellationToken);
@@ -64,10 +74,10 @@ public class FacturaCommandService(
             archivoUrl);
 
         foreach (var item in items)
-            factura.AgregarItem(new ItemFactura(item.Descripcion, item.Cantidad, item.PrecioUnitario));
+            factura.AgregarItem(item);
 
         if (resumenIa is not null)
-            factura.MarcarProcesada(resumenIa);
+            factura.MarcarProcesada(resumenIa, confianzaCampos!, itemsRequierenRevision);
         else
             factura.MarcarProcesadaSinDetalle();
 
@@ -126,11 +136,13 @@ public class FacturaCommandService(
                 new Monto(resultadoIa.MontoTotal, resultadoIa.Moneda),
                 archivoUrl);
 
-            foreach (var item in resultadoIa.Items)
-                factura.AgregarItem(new ItemFactura(item.Descripcion, item.Cantidad, item.PrecioUnitario));
+            foreach (var itemExtraido in resultadoIa.Items)
+            {
+                var producto = await ObtenerOCrearProductoAsync(proveedor.Id, itemExtraido.NombreNormalizado, cancellationToken);
+                factura.AgregarItem(new ItemFactura(producto.Id, itemExtraido.Descripcion, itemExtraido.Cantidad, itemExtraido.PrecioUnitario));
+            }
 
-            factura.MarcarProcesada(resultadoIa.ResumenIa);
-
+            factura.MarcarProcesada(resultadoIa.ResumenIa, resultadoIa.ConfianzaCampos, resultadoIa.ItemsRequierenRevision);
             Factura? facturaCreada = null;
             await unitOfWork.ExecuteInTransactionAsync(async () =>
             {
@@ -221,6 +233,18 @@ public class FacturaCommandService(
 
         var nuevo = new Proveedor(ruc, razonSocial ?? $"Proveedor {ruc.Valor}");
         await proveedorRepository.AddAsync(nuevo, cancellationToken);
+        return nuevo;
+    }
+    
+    private async Task<Producto> ObtenerOCrearProductoAsync(
+        Guid proveedorId, string nombreNormalizado, CancellationToken cancellationToken)
+    {
+        var existente = await productoRepository.FindByProveedorAndNombreAsync(
+            proveedorId, nombreNormalizado, cancellationToken);
+        if (existente is not null) return existente;
+
+        var nuevo = new Producto(proveedorId, nombreNormalizado);
+        await productoRepository.AddAsync(nuevo, cancellationToken);
         return nuevo;
     }
 

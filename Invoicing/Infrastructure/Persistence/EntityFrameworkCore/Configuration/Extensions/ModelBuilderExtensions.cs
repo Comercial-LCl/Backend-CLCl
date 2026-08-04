@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using FacturasIA.Platform.Invoicing.Domain.Model.Aggregates;
 using FacturasIA.Platform.Invoicing.Domain.Model.Entities;
+using FacturasIA.Platform.Invoicing.Domain.Model.Aggregates;
+using FacturasIA.Platform.Invoicing.Domain.Model;
 
 namespace FacturasIA.Platform.Invoicing.Infrastructure.Persistence.EntityFrameworkCore.Configuration.Extensions;
 
@@ -21,6 +23,16 @@ public static class ModelBuilderExtensions
             });
             entity.Property(p => p.RazonSocial).IsRequired().HasMaxLength(255);
         });
+        builder.Entity<Producto>(entity =>
+        {
+            entity.ToTable("productos");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).IsRequired().ValueGeneratedNever();
+            entity.Property(p => p.ProveedorId).IsRequired();
+            entity.Property(p => p.Nombre).IsRequired().HasMaxLength(150);
+            entity.HasIndex(p => new { p.ProveedorId, p.Nombre }).IsUnique();
+        });
+
 
         builder.Entity<Categoria>(entity =>
         {
@@ -45,6 +57,11 @@ public static class ModelBuilderExtensions
             entity.Property(f => f.ArchivoUrl); // ya no .IsRequired()
             entity.Property(f => f.EstadoProcesamiento).IsRequired().HasConversion<string>().HasMaxLength(20);
             entity.Property(f => f.CreatedAt).IsRequired();
+            entity.Property<Dictionary<string, NivelConfianza>?>("_confianzaCampos")
+                .HasColumnName("confianza_campos")
+                .HasColumnType("jsonb")
+                .HasConversion(new ConfianzaCamposConverter());
+            entity.Property(f => f.ItemsRequierenRevision).IsRequired();
 
             entity.OwnsOne(f => f.NumeroFactura, nf =>
             {
@@ -71,6 +88,7 @@ public static class ModelBuilderExtensions
             entity.ToTable("item_facturas");
             entity.HasKey(i => i.Id);
             entity.Property(i => i.Id).IsRequired().ValueGeneratedNever();
+            entity.Property(i => i.ProductoId).IsRequired();
             entity.Property(i => i.Descripcion).IsRequired().HasMaxLength(255);
             entity.Property(i => i.Cantidad).IsRequired().HasColumnType("numeric(10,2)");
             entity.Property(i => i.PrecioUnitario).IsRequired().HasColumnType("numeric(12,2)");

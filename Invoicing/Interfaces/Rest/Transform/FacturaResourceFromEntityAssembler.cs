@@ -21,6 +21,8 @@ public static class FacturaResourceFromEntityAssembler
             entity.ResumenIa,
             entity.ArchivoUrl,
             entity.EstadoProcesamiento.ToString(),
+            entity.ConfianzaCampos?.ToDictionary(kv => kv.Key, kv => kv.Value.ToString()),
+            entity.RequiereRevision,
             entity.Items.Select(i => new ItemFacturaResource(i.Id, i.Descripcion, i.Cantidad, i.PrecioUnitario, i.Subtotal)));
     }
 }
